@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Auditor de Codigo</title>
+		<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css')}}">
+		</head>
+		<body>
+		<header>
+			<h1>Analizador de vulnerabilidades Local</h1>
+		</header>
+		
+		<div class="container">
+			<div class="panel">
+				<div class="panel-header">
+					<label for="lenguaje">Codigo fuente</label>
+					<div class="controls-group">
+						<input type="file" id="fileInput" style="display: none;" onchange="cargarArchivo(this)">
+						<button class="btn-secondary" onclick="document.getElementById('fileInput').click()">Subir Archivo</button>
+							<select id="lenguaje">
+								<option value="python">Python</option>
+								<option value="javascript">JavaScript</option>
+								<option value="sql">SQL</option>
+								<option value="html/css">HTML/CSS</option>
+								<option value="c++">C/C++</option>
+							</select>
+							<button id="btnAuditar" onclick="enviarAAuditar()">Escanear Codigo</button>
+						</div>
+				         </div>
+					 <textarea id="codigoInput" placeholder="Pega tu función, query SQL o script aquí..."></textarea>
+			</div>
+			<div class="panel">
+				<div class="panel-header">
+					<label>Reporte de Seguridad de Claude</label>
+				</div>
+				<div id="resultado" class="resultado-area">
+					<p style="color: #6c7086;">El reporte aparecerá después del analisis...</p>
+				</div>
+			</div>
+		</div>
+		<script>
+			function cargarArchivo(input) {
+				const file = input.files[0];
+				if (!file) return;
+
+				const extension = file.name.split('.').pop().toLowerCase();
+				const selectorLenguaje = document.getElementById('lenguaje');
+
+				const mapeoExtensiones = {
+					'py': 'python',
+					'js': 'javascript',
+					'jxs': 'javascript',
+					'ts': 'javascript',
+					'sql': 'sql',
+					'html': 'html/css',
+					'css': 'html/css',
+					'cpp': 'c++',
+					'c': 'c++',
+					'h': 'c++'
+				};
+
+				if (mapeoExtensiones[extension]){
+					selectorLenguaje.value = mapeoExtensiones[extension];
+				}
+				const reader = new FileReader();
+				reader.onload = function(e) {
+					document.getElementById('codigoInput').value = e.target.result;
+				};
+				reader.readAsText(file);
+			}
+
+			async function enviarAAuditar() {
+				const codigo = document.getElementById('codigoInput').value;
+				const lenguaje = document.getElementById('lenguaje').value;
+				const contenedorResultado = document.getElementById('resultado');
+				const btn = document.getElementById('btnAuditar');
+
+				if (!codigo.trim()) {
+					alert('Por favor, escribe o pega algun codigo primero.');
+					return;
+				}
+
+				btn.disabled = true;
+				btn.innerText = 'Analizando...';
+				contenedorResultado.innerHTML = '<p class="loading">[!] Claude está auditando...</p>';
+
+				try {
+					const response = await fetch('/auditar', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json'
+						},
+						body: JSON.stringify({codigo, lenguaje})
+					});
+
+					const data = await response.json();
+
+					if (response.ok) {
+						contenedorResultado.innerHTML = marked.parse(data.resultado);
+					} else {
+						contenedorResultado.innerHTML = `<p style="color: #f38ba8;"><strong>Error:</strong> ${data.error}</p>`;
+					} 
+
+				      } catch (error) {
+						contenedorResultado.innerHTML = `<p style="color: #f38ba8;"><strong>Error de red:</strong> No se pudo conectar con el servidor local.</p>`;
+					} finally{
+						btn.disabled = false;
+						btn.innerText = 'Escanear Código';
+					}
+				}
+		</script>
+		</body>
+</html>
